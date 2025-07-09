@@ -1,49 +1,141 @@
 import socket
-from typing import Literal
+import logging
+from typing import Literal, Optional, Dict
+import time
 
-HOST = "192.168.137.24"
-PORT = 1234
+import random
+from itertools import cycle
 
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
+)
+logger = logging.getLogger("ESP32Interactor")
 
-def read_from_server(s):
-    c=""
-    while "\n" not in c:
-        c += s.recv(1).decode()
-    return c
+RETRY_SECS = 2
+SOCKET_TIMEOUT = 1
 
-
-def init_esp():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print(f"Connecting to server....{(HOST, PORT)=}")
-    s.connect((HOST, PORT))
-    print("Sucessfully connected to esp")
-    return s 
-
-def pin_state(s:socket,pin:int,state:Literal[1,0]):
-    if state not in [1,0]:
-        raise ValueError("Invalid state")
-    message = f"{pin} {state}\n".encode()
-    print(f"Sending.... {message}")
-    s.sendall(message)
-    data = read_from_server(s)
-    print("ESP32 Response: ",data)
+ALLOWED_PINS = [13, 12, 14, 27, 26, 25, 33, 32, 35, 34]  # Optional validation
 
 
+class ESP32Interactor:
+    def __init__(self, host: str, port: int = 1234, retry_count: int = 10):
+        self.host = host
+        self.port = port
+        self.sock: Optional[socket.socket] = None
+        self.retry_count = retry_count
+        self.pin_states: Dict[int, Literal[0, 1]] = {}
+
+    def connect(self):
+        """Establish TCP connection with ESP32."""
+        if self.retry_count < 1:
+            logger.error("Failed to establish connection. Exceeded retries.")
+            return
+        if self.sock:
+            logger.warning("Already connected.")
+            return
+
+        try:
+            self.retry_count -= 1
+            logger.info(f"Connecting to ESP32 at {self.host}:{self.port}...")
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.settimeout(SOCKET_TIMEOUT)
+            self.sock.connect((self.host, self.port))
+            logger.info("Connection established.")
+        except Exception as e:
+            logger.warning("Failed to connect to ESP32.")
+            self.sock = None
+            logger.info(f"Sleeping for {RETRY_SECS} before retrying...")
+            time.sleep(RETRY_SECS)
+            self.connect()
+
+    def disconnect(self):
+        """Close the socket connection."""
+        if self.sock:
+            try:
+                self.sock.close()
+                logger.info("Disconnected from ESP32.")
+            finally:
+                self.sock = None
+
+    def _read_line(self) -> str:
+        """Read data until newline from ESP32."""
+        if not self.sock:
+            raise RuntimeError("Not connected to ESP32.")
+        buffer = ""
+        while "\n" not in buffer:
+            data = self.sock.recv(1).decode()
+            if not data:
+                raise ConnectionError("Disconnected unexpectedly.")
+            buffer += data
+        return buffer.strip()
+
+    def set_pin_state(self, pin: int, state: Literal[0, 1]):
+        """Send pin state command to ESP32 and track it locally."""
+        self.connect()
+
+        if pin not in ALLOWED_PINS:
+            raise ValueError(f"Pin {pin} is not allowed.")
+
+        if state not in (0, 1):
+            raise ValueError("State must be 0 or 1.")
+
+        command = f"{pin} {state}\n"
+        logger.info(f"Sending command: {command.strip()}")
+        self.sock.sendall(command.encode())
+        response = self._read_line()
+
+        if "OK" in response:
+            self.pin_states[pin] = state  # Update local state
+            logger.info(f"Pin {pin} updated to {state}")
+        else:
+            logger.warning(f"ESP32 did not confirm state change: {response}")
+
+        return response
+
+    def get_all_pin_states(self) -> Dict[int, Literal[0, 1]]:
+        """Return the locally known pin states."""
+        return dict(self.pin_states)  # Return a copy
+
+    def __del__(self):
+        """Ensure clean shutdown."""
+        self.disconnect()
 
 
 def cli_mainloop():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        print(f"Connecting to server....{(HOST, PORT)=}")
-        s.connect((HOST, PORT))
+    """Simple CLI loop to control pins via ESP32."""
+    esp = ESP32Interactor("192.168.137.24", 1234)
+
+    try:
+        esp.connect()
         while True:
-            print("*"*10)
-            pin,state,*_=checker = input("Enter pin and state as pin,state\n").strip().split(",")
-            if(len(checker)!=2):
-                print(f"Error invalid input {checker=}")
+            print("\n" + "*" * 30)
+            user_input = input("Enter pin,state | 'get' | 'exit': ").strip().lower()
+            if user_input in {"exit", "quit"}:
+                logger.info("Exiting CLI.")
+                break
+
+            if user_input == "get":
+                states = esp.get_all_pin_states()
+                print("Current known pin states:")
+                for pin, state in sorted(states.items()):
+                    print(f"  Pin {pin}: {state}")
                 continue
-            pin_state(s,pin,state)
-            
-            
 
+            try:
+                parts = user_input.split(",")
+                if len(parts) != 2:
+                    raise ValueError(f"Expected format 'pin,state', got {user_input!r}")
 
-# cli_mainloop()
+                pin = int(parts[0])
+                state = int(parts[1])
+                esp.set_pin_state(pin, state)
+
+            except Exception as e:
+                logger.error(f"Error: {e}")
+    finally:
+        esp.disconnect()
+
+if __name__ == "__main__":
+    cli_mainloop()
