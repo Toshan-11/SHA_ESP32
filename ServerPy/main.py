@@ -137,5 +137,97 @@ def cli_mainloop():
     finally:
         esp.disconnect()
 
+
+def blinker():
+    pins = [13, 12, 14, 27, 26]
+    esp = ESP32Interactor("192.168.137.24", 1234)
+    delay = 0.0  # seconds
+
+    def off_all():
+        for p in pins:
+            esp.set_pin_state(p, 0)
+
+    def linear_sweep():
+        for p in pins:
+            esp.set_pin_state(p, 1)
+            time.sleep(delay)
+            esp.set_pin_state(p, 0)
+
+    def alternate_blink():
+        group1 = pins[::2]
+        group2 = pins[1::2]
+        for _ in range(3):
+            for p in group1:
+                esp.set_pin_state(p, 1)
+            for p in group2:
+                esp.set_pin_state(p, 0)
+            time.sleep(delay)
+            for p in group1:
+                esp.set_pin_state(p, 0)
+            for p in group2:
+                esp.set_pin_state(p, 1)
+            time.sleep(delay)
+            off_all()
+
+    def odd_even_chase():
+        odds = [p for p in pins if p % 2 == 1]
+        evens = [p for p in pins if p % 2 == 0]
+        for _ in range(2):
+            for p in odds:
+                esp.set_pin_state(p, 1)
+            time.sleep(delay)
+            for p in odds:
+                esp.set_pin_state(p, 0)
+            for p in evens:
+                esp.set_pin_state(p, 1)
+            time.sleep(delay)
+            for p in evens:
+                esp.set_pin_state(p, 0)
+
+    def flash_all(times=3):
+        for _ in range(times):
+            for p in pins:
+                esp.set_pin_state(p, 1)
+            time.sleep(delay)
+            off_all()
+            time.sleep(delay)
+
+    def ping_pong():
+        sequence = pins + pins[::-1][1:-1]
+        for p in sequence:
+            off_all()
+            esp.set_pin_state(p, 1)
+            time.sleep(delay)
+        off_all()
+
+    def random_chaos(times=10):
+        for _ in range(times):
+            p = random.choice(pins)
+            s = random.choice([0, 1])
+            esp.set_pin_state(p, s)
+            time.sleep(delay)
+
+    # Pattern cycle
+    patterns = cycle([
+        linear_sweep,
+        alternate_blink,
+        odd_even_chase,
+        flash_all,
+        ping_pong,
+        random_chaos
+    ])
+
+    print("Running LED blinker patterns (Ctrl+C to stop)")
+    try:
+        while True:
+            pattern = next(patterns)
+            print(f"\n[Pattern: {pattern.__name__}]")
+            pattern()
+    except KeyboardInterrupt:
+        print("Stopping blinker...")
+        off_all()
+        esp.disconnect()
+
 if __name__ == "__main__":
-    cli_mainloop()
+    # cli_mainloop()
+    blinker()
