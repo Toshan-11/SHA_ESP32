@@ -101,7 +101,14 @@ void loop() {
         data.trim();
 
         int pin, state;
-        if (sscanf(data.c_str(), "%d %d", &pin, &state) == 2) {
+        if (data.equalsIgnoreCase("GETALL")) {
+          // Respond with all pin values
+          client.println("Pin Values:");
+          for (int i = 0; i < NUM_PINS; i++) {
+            int val = digitalRead(allowedPins[i]);
+            client.printf("Pin %d: %d\n", allowedPins[i], val);
+          }
+        } else if (sscanf(data.c_str(), "%d %d", &pin, &state) == 2) {
           if (isValidPin(pin) && (state == 0 || state == 1)) {
             digitalWrite(pin, state);
             client.println("OK");
@@ -110,7 +117,7 @@ void loop() {
             client.println("Invalid pin or state");
           }
         } else {
-          client.println("Invalid format. Use: <pin> <state>");
+          client.println("Invalid format. Use: <pin> <state> or GETALL");
         }
       }
     }
