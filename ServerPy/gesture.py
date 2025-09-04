@@ -6,10 +6,10 @@ import time
 # Maps: thumb to pinky → pin list
 FINGER_TO_PIN = {
     0: 13,  # Thumb
-    1: 12,  # Index
+    1: 12,  # index
     2: 14,  # Middle
     3: 27,  # Ring
-    4: 26   # Pinky
+    4: 25,   # Pinky
 }
 
 mp_hands = mp.solutions.hands
@@ -47,7 +47,7 @@ def get_finger_states(hand_landmarks) -> list[int]:
 
 def gesture():
     cap = cv2.VideoCapture(0)
-    esp = ESP32Interactor("192.168.137.24", 1234)
+    esp = ESP32Interactor("192.168.137.230")
     last_state = [0, 0, 0, 0, 0]  # Store previous finger states
 
     with mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.6) as hands:
@@ -69,6 +69,8 @@ def gesture():
 
                         # Send pin updates if changed
                         for i, state in enumerate(states):
+                            if i not in FINGER_TO_PIN:
+                                continue
                             pin = FINGER_TO_PIN[i]
                             if state != last_state[i]:
                                 esp.set_pin_state(pin, state)

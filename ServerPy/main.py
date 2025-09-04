@@ -7,7 +7,7 @@ from itertools import cycle
 
 def cli_mainloop():
     """Simple CLI loop to control pins via ESP32."""
-    esp = ESP32Interactor("192.168.137.24", 1234)
+    esp = ESP32Interactor()
 
     try:
         esp.connect()
@@ -42,7 +42,7 @@ def cli_mainloop():
 
 def blinker():
     pins = [13, 12, 14, 27, 26]
-    esp = ESP32Interactor("192.168.137.24", 1234)
+    esp = ESP32Interactor()
     delay = 0.0  # seconds
 
     def off_all():
@@ -132,6 +132,24 @@ def blinker():
         off_all()
         esp.disconnect()
 
+
+# from interactor import ESP32Interactor, logger
+# esp = -----------------192.168.137.2.168.137.237.106")
+# ALLOWED_PINS = [13, 12, 14, 27, 26, 25, 33, 32, 35, 34]
+# def basic_example():
+#     esp.set_pin_state(13,1)
+# def print_state():
+#   esp.get_all_pin_states() # {pin_int:pin_state_0_1,pin_int::pin_state_0_1}
+# ligth_pin = 13
+
+# @onmessage("lights on")
+# def ligh_on():
+#     esp.set_pin_state(ligth_pin,1)
+
+
+# @onmessage("lights off")
+# def ligh_off():
+#     esp.set_pin_state(ligth_pin,0)
 
 if __name__ == "__main__":
     # cli_mainloop()

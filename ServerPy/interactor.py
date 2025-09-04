@@ -2,7 +2,7 @@ import socket
 import logging
 from typing import Literal, Optional, Dict
 import time
-
+from esp_id import get_esp_ip
 
 # Setup logging
 logging.basicConfig(
@@ -14,12 +14,17 @@ logger = logging.getLogger("ESP32Interactor")
 RETRY_SECS = 2
 SOCKET_TIMEOUT = 1
 
-ALLOWED_PINS = [13, 12, 14, 27, 26, 25, 33, 32, 35, 34]  # Optional validation
+ALLOWED_PINS = [13, 12, 14, 27, 26, 25, 33, 32, 35, 34]
 
 
 
 class ESP32Interactor:
-    def __init__(self, host: str, port: int = 1234, retry_count: int = 10):
+    def __init__(self, host: str="", port: int = 1234, retry_count: int = 10):
+        if not host:
+            hosts = get_esp_ip()
+            if not hosts:
+                raise ValueError("Could not find esp on our hotspot")
+            host = hosts[0]
         self.host = host
         self.port = port
         self.sock: Optional[socket.socket] = None
@@ -42,7 +47,7 @@ class ESP32Interactor:
             self.sock.settimeout(SOCKET_TIMEOUT)
             self.sock.connect((self.host, self.port))
             logger.info("Connection established.")
-        except Exception as e:
+        except Exception as e: 
             logger.warning("Failed to connect to ESP32.")
             self.sock = None
             logger.info(f"Sleeping for {RETRY_SECS} before retrying...")
