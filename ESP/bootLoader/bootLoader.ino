@@ -1,15 +1,19 @@
 #include <WiFi.h>
 
 // Target Wi-Fi credentials
-const char* ssid = "esp_wifi";
-const char* password = "password123";
+const char* ssid = "w";
+const char* password = "12345678";
 
 // TCP server
 WiFiServer server(1234);
 
+
 // Allowed pins
 int allowedPins[] = {13, 12, 14, 27, 26, 25, 33, 32, 35, 34};
 #define NUM_PINS (sizeof(allowedPins) / sizeof(allowedPins[0]))
+
+// Onboard LED pin (usually 2 for ESP32)
+#define LED_PIN 2
 
 void setupPins() {
   for (int i = 0; i < NUM_PINS; i++) {
@@ -25,9 +29,13 @@ bool isValidPin(int pin) {
   return false;
 }
 
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
 
   Serial.println("Scanning for available WiFi networks...");
   int n = WiFi.scanNetworks();
@@ -43,14 +51,23 @@ void setup() {
 
   if (!ssidFound) {
     Serial.printf("SSID \"%s\" not found. Halting...\n", ssid);
-    while (true);  // Halt execution (crash out)
+    while (true){
+      digitalWrite(LED_PIN, HIGH);
+      delay(100);
+      digitalWrite(LED_PIN, LOW);
+      delay(500);
+    }
   }
 
   Serial.printf("Connecting to SSID \"%s\"...\n", ssid);
   WiFi.begin(ssid, password);
 
+  // Blink LED while connecting
   while (WiFi.status() != WL_CONNECTED ) {
-    delay(500);
+    digitalWrite(LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(LED_PIN, LOW);
+    delay(200);
     Serial.print(".");
   }
 
@@ -59,6 +76,9 @@ void setup() {
     while (true);  // Halt execution (crash out)
   }
 
+  // Blink LED once to indicate successful connection
+  digitalWrite(LED_PIN, HIGH);
+ 
   Serial.println("\nConnected to WiFi!");
   Serial.println(WiFi.localIP());
 
