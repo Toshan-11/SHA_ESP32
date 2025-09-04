@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger("ESP32Interactor")
 
 RETRY_SECS = 2
-SOCKET_TIMEOUT = 1
+SOCKET_TIMEOUT = 5
 
 ALLOWED_PINS = [13, 12, 14, 27, 26, 25, 33, 32, 35, 34]
 
@@ -99,8 +99,12 @@ class ESP32Interactor:
         return response
 
     def get_all_pin_states(self) -> Dict[int, Literal[0, 1]]:
-        """Return the locally known pin states."""
-        return dict(self.pin_states)  # Return a copy
+        """Fetch all pin states from ESP32 server using GETALL command."""
+        self.connect()
+        self.sock.sendall(b'GETALL\n')
+        pin_values = self._read_line().split(',')
+        # return {int(i.split(':')[0]): int(i.split(':')[1]) for i in pin_values}
+        return {i.split(":")[0]:i.split(":")[1] for i in pin_values}
 
     def __del__(self):
         """Ensure clean shutdown."""

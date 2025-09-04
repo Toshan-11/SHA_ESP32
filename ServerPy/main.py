@@ -13,14 +13,21 @@ def cli_mainloop():
         esp.connect()
         while True:
             print("\n" + "*" * 30)
-            user_input = input("Enter pin,state | 'get' | 'exit': ").strip().lower()
+            user_input = input("Enter pin,state | 'get' | 'getall' | 'exit': ").strip().lower()
             if user_input in {"exit", "quit"}:
                 logger.info("Exiting CLI.")
                 break
 
             if user_input == "get":
+                states = esp.pin_states
+                print("Current locally known pin states:")
+                for pin, state in sorted(states.items()):
+                    print(f"  Pin {pin}: {state}")
+                continue
+
+            if user_input == "getall":
                 states = esp.get_all_pin_states()
-                print("Current known pin states:")
+                print("Current ESP32 pin states:")
                 for pin, state in sorted(states.items()):
                     print(f"  Pin {pin}: {state}")
                 continue
@@ -151,6 +158,18 @@ def blinker():
 # def ligh_off():
 #     esp.set_pin_state(ligth_pin,0)
 
+
+def a_function():
+    esp = ESP32Interactor()
+    esp.connect()
+    esp.set_pin_state(13, 1)
+    # while True:
+    #     getall = esp.get_all_pin_states()
+    #     print(getall)
+    #     time.sleep(1)
+
+
 if __name__ == "__main__":
-    # cli_mainloop()
-    blinker()
+    cli_mainloop()
+    # blinker()
+    # a_function()

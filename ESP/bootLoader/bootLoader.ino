@@ -1,4 +1,6 @@
+
 #include <WiFi.h>
+#include <DHT.h>
 
 // Target Wi-Fi credentials
 const char* ssid = "w";
@@ -8,23 +10,34 @@ const char* password = "12345678";
 WiFiServer server(1234);
 
 
-// Allowed pins
+
+// Allowed pins (26 is reserved for DHT sensor)
 int allowedPins[] = {13, 12, 14, 27, 26, 25, 33, 32, 35, 34};
 #define NUM_PINS (sizeof(allowedPins) / sizeof(allowedPins[0]))
 
 // Onboard LED pin (usually 2 for ESP32)
 #define LED_PIN 2
 
+// DHT sensor setup
+#define DHTPIN 26
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
 void setupPins() {
   for (int i = 0; i < NUM_PINS; i++) {
+    if (allowedPins[i] == DHTPIN || allowedPins[i] == 34 || allowedPins[i] == 35) continue; // skip DHT and input-only pins
     pinMode(allowedPins[i], OUTPUT);
     digitalWrite(allowedPins[i], LOW);
   }
+  pinMode(34, INPUT);
+  pinMode(35, INPUT);
 }
 
 bool isValidPin(int pin) {
+  // DHT pin and input-only pins cannot be set
+  if (pin == DHTPIN || pin == 34 || pin == 35) return false;
   for (int i = 0; i < NUM_PINS; i++) {
-    if (allowedPins[i] == pin) return true;
+    if (allowedPins[i] == pin && pin != DHTPIN && pin != 34 && pin != 35) return true;
   }
   return false;
 }
@@ -32,8 +45,7 @@ bool isValidPin(int pin) {
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
-
+  
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
@@ -82,6 +94,7 @@ void setup() {
   Serial.println("\nConnected to WiFi!");
   Serial.println(WiFi.localIP());
 
+  dht.begin();
   setupPins();
   server.begin();
 }
@@ -92,9 +105,8 @@ void loop() {
   if (client) {
     Serial.println("Client connected!");
     while (client.connected()) {
-      Serial.println("Waiting for command...");
+      Serial.printf("Waiting ...\r");
       if (client.available()) {
-
         String data = client.readStringUntil('\n');
         Serial.print("Recived data: ");
         Serial.println(data);
@@ -102,12 +114,18 @@ void loop() {
 
         int pin, state;
         if (data.equalsIgnoreCase("GETALL")) {
-          // Respond with all pin values
-          client.println("Pin Values:");
+          // Read all digital pins except DHTPIN
           for (int i = 0; i < NUM_PINS; i++) {
+            if (allowedPins[i] == DHTPIN) continue;
             int val = digitalRead(allowedPins[i]);
-            client.printf("Pin %d: %d\n", allowedPins[i], val);
+            client.printf("%d:%d,", allowedPins[i], val);
+            Serial.printf("Pin %d: %d\n", allowedPins[i], val);
           }
+          // Read DHT sensor
+          float temp = dht.readTemperature();
+          float hum = dht.readHumidity();
+          client.printf("TEMP:%f,HUM:%f\n", temp, hum);
+          Serial.printf("DHT Sensor - Temp: %f, Hum: %f\n", temp, hum);
         } else if (sscanf(data.c_str(), "%d %d", &pin, &state) == 2) {
           if (isValidPin(pin) && (state == 0 || state == 1)) {
             digitalWrite(pin, state);
